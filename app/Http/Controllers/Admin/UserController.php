@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Patient;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Spatie\Permission\Models\Role;
+
+class UserController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        return view('admin.users.index');
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        $roles = Role::pluck('name', 'name')->toArray();
+        return view('admin.users.create', compact('roles'));
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        // Validar los datos del formulario
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email|max:255',
+            'id_number' => 'required|string|unique:users,id_number|max:20',
+            'phone' => 'required|string|max:20',
+            'password' => 'required|string|min:8|confirmed',
+            'address' => 'required|string|max:500',
+            'role' => 'required|string|exists:roles,name',
+        ]);
+
+        // Crear el usuario
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'id_number' => $validated['id_number'],
+            'phone' => $validated['phone'],
+            'password' => bcrypt($validated['password']),
+            'address' => $validated['address'],
+        ]);
+
+        // Asignar el rol al usuario
+        $user->assignRole($validated['role']);
+
+        // Si el rol es Paciente, crear registro en la tabla patients (relación 1:1)
+        if ($validated['role'] === 'Paciente') {
+            Patient::create([
+                'user_id' => $user->id,
+                'date_of_birth' => now()->subYears(18)->format('Y-m-d'),
+                'gender' => 'other',
+                'emergency_contact_name' => 'Por definir',
+                'emergency_contact_phone' => '0000000000',
+            ]);
+
+            return redirect()->route('admin.patients.index')
+                ->with('swal', [
+                    'title' => 'Paciente creado',
+                    'text' => 'Complete la información médica del paciente.',
+                    'icon' => 'success',
+                ]);
+        }
+
+        // Redirigir con mensaje de éxito
+        return redirect()->route('admin.users.index')
+            ->with('swal', [
+                'title' => 'Usuario creado',
+                'text' => 'El usuario ha sido creado exitosamente.',
+                'icon' => 'success',
+            ]);
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(User $user)
+    {
+        //
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(User $user)
+    {
+        $roles = Role::pluck('name', 'name')->toArray();
+        return view('admin.users.edit', compact('user', 'roles'));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id . '|max:255',
+            'password' => 'nullable|string|min:8|confirmed',
+            'id_number' => 'required|string|unique:users,id_number,' . $user->id . '|max:20',
+            'phone' => 'required|string|max:20',
+            'address' => 'required|string|max:500',
+            'role' => 'required|string|exists:roles,name',
+        ]);
+
+        $userData = [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'id_number' => $validated['id_number'],
+            'phone' => $validated['phone'],
+            'address' => $validated['address'],
+        ];
+
+        if (!empty($validated['password'])) {
+            $userData['password'] = bcrypt($validated['password']);
+        }
+
+        $user->update($userData);
+
+        $user->syncRoles($validated['role']);
+
+        return redirect()->route('admin.users.index')
+            ->with('swal', [
+                'title' => 'Usuario actualizado',
+                'text' => 'El usuario ha sido actualizado exitosamente.',
+                'icon' => 'success',
+            ]);
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(User $user)
+    {
+        // Prevenir que el usuario se elimine a sí mismo
+        if (auth()->id() === $user->id) {
+            abort(403, 'No puedes eliminarte a ti mismo.');
+        }
+
+        $user->delete();
+
+        return redirect()->route('admin.users.index')
+            ->with('swal', [
+                'title' => 'Usuario eliminado',
+                'text' => 'El usuario ha sido eliminado exitosamente.',
+                'icon' => 'success',
+            ]);
+    }
+}
