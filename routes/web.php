@@ -16,3 +16,5 @@ Route::middleware([
         return view('dashboard');
     })->name('dashboard');
 });
+
+// Rutas de soporte
