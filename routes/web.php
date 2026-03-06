@@ -2,19 +2,18 @@
 
 use Illuminate\Support\Facades\Route;
 
-// Redireccionar la raíz al panel de administración
+// Redirect to admin panel
 Route::redirect('/', '/admin');
 
-// Rutas protegidas que requieren autenticación y verificación
+//Protected routes
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
     'verified',
 ])->group(function () {
-    // Vista principal del dashboard
+    // principal view
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
 });
 
-// Rutas de soporte
